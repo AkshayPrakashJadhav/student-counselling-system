@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ERP Portal - Wellness Chatbot</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4F46E5;
+      --primary-hover: #4338CA;
+      --bg: #F3F4F6;
+      --surface: #FFFFFF;
+      --text-main: #111827;
+      --text-muted: #6B7280;
+      --user-bubble: #4F46E5;
+      --bot-bubble: #E5E7EB;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+
+    body {
+      background: var(--bg);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .chat-container {
+      width: 100%;
+      max-width: 600px;
+      height: 90vh;
+      background: var(--surface);
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      background: var(--primary);
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+
+    .chat-messages {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      background: #FAFAFA;
+    }
+
+    .message {
+      max-width: 85%;
+      padding: 12px 16px;
+      border-radius: 18px;
+      font-size: 0.95rem;
+      line-height: 1.4;
+      animation: fadeIn 0.3s ease;
+      word-wrap: break-word;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: var(--user-bubble);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.bot {
+      align-self: flex-start;
+      background: var(--bot-bubble);
+      color: var(--text-main);
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-input-area {
+      padding: 15px;
+      background: white;
+      border-top: 1px solid #E5E7EB;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #chat-input {
+      flex: 1;
+      padding: 12px 20px;
+      border: 1px solid #D1D5DB;
+      border-radius: 25px;
+      font-size: 1rem;
+      transition: border 0.3s;
+    }
+
+    #chat-input:focus { outline: none; border-color: var(--primary); }
+
+    .send-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      width: 45px;
+      height: 45px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s;
+    }
+
+    .send-btn:hover { background: var(--primary-hover); }
+
+    .send-btn:disabled { background: #A5B4FC; cursor: not-allowed; }
+
+    /* Custom UI Components inside Chat */
+    .btn-group { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+    
+    .chat-btn {
+      background: white;
+      border: 1px solid var(--primary);
+      color: var(--primary);
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .chat-btn:hover { background: var(--primary); color: white; }
+
+    .date-picker-container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      border: 1px solid #E5E7EB;
+    }
+
+    .date-picker-container input {
+      padding: 10px;
+      border: 1px solid #D1D5DB;
+      border-radius: 8px;
+    }
+
+    .booking-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      border: 1px solid #E5E7EB;
+    }
+
+    .booking-form input {
+      padding: 10px;
+      border: 1px solid #D1D5DB;
+      border-radius: 8px;
+    }
+
+    .booking-form a {
+      color: var(--primary);
+      font-size: 0.85rem;
+      margin-bottom: 5px;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="chat-container">
+    <div class="chat-header">Student Support Assistant</div>
+    <div class="chat-messages" id="chat-messages">
+      <!-- Messages go here -->
+    </div>
+    <div class="chat-input-area">
+      <input type="text" id="chat-input" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
+      <button class="send-btn" id="send-btn" onclick="handleUserMessage()">➤</button>
+    </div>
+  </div>
+
+  <script>
+    const msgsContainer = document.getElementById('chat-messages');
+    const inputField = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-btn');
+
+    let chatState = "GREETING"; // States: GREETING, NEED_SUPPORT, CATEGORY, DATE, DETAILS, DONE
+    let bookingData = { category: "", date: "", time: "", name: "", email: "" };
+    let chatHistory = [];
+
+    // Initialize
+    window.onload = () => {
+      appendMessage("bot", "Hello! How are you feeling today?");
+    };
+
+    function handleKeyPress(e) {
+      if (e.key === 'Enter') handleUserMessage();
+    }
+
+    async function handleUserMessage() {
+      const text = inputField.value.trim();
+      if (!text) return;
+
+      appendMessage("user", text);
+      inputField.value = "";
+
+      if (chatState === "GREETING") {
+        setLoading(true);
+        try {
+          chatHistory.push({ role: 'user', text: text });
+          const response = await fetch('http://localhost:5000/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: text, history: chatHistory.slice(0, -1) })
+          });
+          const data = await response.json();
+          setLoading(false);
+
+          if (data.success) {
+            appendMessage("bot", data.reply);
+            chatHistory.push({ role: 'model', text: data.reply });
+            
+            setTimeout(() => {
+              appendSupportQuestion();
+            }, 1000);
+          } else {
+            appendMessage("bot", "I'm having trouble connecting to the AI.");
+          }
+        } catch (e) {
+          setLoading(false);
+          appendMessage("bot", "Network error communicating with AI.");
+        }
+      } else {
+        // If they type text during button phases, just politely guide them back.
+        appendMessage("bot", "Please select an option from above, or refresh to start over.");
+      }
+    }
+
+    function appendMessage(sender, text) {
+      const div = document.createElement('div');
+      div.className = `message ${sender}`;
+      div.innerHTML = text;
+      msgsContainer.appendChild(div);
+      scrollToBottom();
+    }
+
+    function appendHTML(html) {
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      msgsContainer.appendChild(div);
+      scrollToBottom();
+    }
+
+    function scrollToBottom() {
+      msgsContainer.scrollTop = msgsContainer.scrollHeight;
+    }
+
+    function setLoading(isLoading) {
+      inputField.disabled = isLoading;
+      sendBtn.disabled = isLoading;
+    }
+
+    // --- State Transitions ---
+
+    function appendSupportQuestion() {
+      chatState = "NEED_SUPPORT";
+      inputField.disabled = true; // Force button click
+      const html = `
+        <div class="message bot">
+          Are you looking for some support?
+          <div class="btn-group">
+            <button class="chat-btn" onclick="handleSupport('Yes')">Yes</button>
+            <button class="chat-btn" onclick="handleSupport('No')">No</button>
+          </div>
+        </div>
+      `;
+      appendHTML(html);
+    }
+
+    window.handleSupport = (choice) => {
+      appendMessage("user", choice);
+      if (choice === 'Yes') {
+        chatState = "CATEGORY";
+        const html = `
+          <div class="message bot">
+            May I know the category of concern?
+            <div class="btn-group">
+              <button class="chat-btn" onclick="handleCategory('Career')">Career</button>
+              <button class="chat-btn" onclick="handleCategory('Wellbeing')">Wellbeing</button>
+              <button class="chat-btn" onclick="handleCategory('Academics')">Academics</button>
+            </div>
+          </div>
+        `;
+        appendHTML(html);
+      } else {
+        chatState = "DONE";
+        appendMessage("bot", "Okay! I'm always here if you change your mind.");
+        inputField.disabled = false;
+        chatState = "GREETING"; // Reset
+      }
+    };
+
+    window.handleCategory = (cat) => {
+      appendMessage("user", cat);
+      bookingData.category = cat;
+      chatState = "DATE";
+      
+      // Get next hour for default calendar value
+      const now = new Date();
+      now.setHours(now.getHours() + 1);
+      now.setMinutes(0);
+      const tzoffset = (new Date()).getTimezoneOffset() * 60000; // local timezone offset in ms
+      const localISOTime = (new Date(now - tzoffset)).toISOString().slice(0, 16);
+
+      const html = `
+        <div class="message bot">
+          Please select a date and time for a 30-minute slot.
+          <div class="date-picker-container">
+            <input type="datetime-local" id="slot-picker" min="${localISOTime}" value="${localISOTime}">
+            <button class="chat-btn" onclick="checkSlot()">Check Availability</button>
+          </div>
+        </div>
+      `;
+      appendHTML(html);
+    };
+
+    window.checkSlot = async () => {
+      const val = document.getElementById('slot-picker').value;
+      if (!val) return;
+      
+      appendMessage("user", "Selected: " + new Date(val).toLocaleString());
+      
+      const dateStr = val.split("T")[0];
+      const timeStr = val.split("T")[1].slice(0, 5);
+
+      appendMessage("bot", "Checking availability...");
+
+      try {
+        const res = await fetch(`http://localhost:5000/api/check-availability?date=${dateStr}&time=${timeStr}`);
+        const data = await res.json();
+
+        if (data.available) {
+          bookingData.date = dateStr;
+          bookingData.time = val; // Full ISO string needed for Zoom
+          chatState = "DETAILS";
+          
+          const html = `
+            <div class="message bot">
+              Slot is available! Please enter your details to confirm.
+              <div class="booking-form">
+                <input type="text" id="student-name" placeholder="Full Name">
+                <input type="email" id="student-email" placeholder="College Email">
+                <a href="#" target="_blank">📄 Privacy Statement & Code of Conduct</a>
+                <button class="chat-btn" onclick="confirmBooking()">Agree & Book</button>
+              </div>
+            </div>
+          `;
+          appendHTML(html);
+        } else {
+          appendMessage("bot", "❌ Sorry, this slot is already booked. Please select another time.");
+          // Reset to date picker
+          handleCategory(bookingData.category);
+        }
+      } catch (e) {
+        appendMessage("bot", "Error checking availability.");
+      }
+    };
+
+    window.confirmBooking = async () => {
+      const name = document.getElementById('student-name').value.trim();
+      const email = document.getElementById('student-email').value.trim();
+
+      if (!name || !email) {
+        alert("Please enter name and email.");
+        return;
+      }
+
+      bookingData.name = name;
+      bookingData.email = email;
+
+      appendMessage("user", `Confirming booking for ${name}`);
+      appendMessage("bot", "⏳ Booking your session with Zoom...");
+
+      try {
+        const res = await fetch("http://localhost:5000/api/book-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentName: bookingData.name,
+            email: bookingData.email,
+            time: bookingData.time,
+            category: bookingData.category
+          })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          chatState = "DONE";
+          appendMessage("bot", `✅ <b>Thank u for choosing us.</b><br><br>Your session is booked! A confirmation email has been sent to ${email}.<br><br>Meeting Link: <a href="${data.meetLink}" target="_blank">Join Zoom</a>`);
+        } else {
+          appendMessage("bot", "❌ Failed to book session. Please try again later.");
+        }
+      } catch (e) {
+        appendMessage("bot", "❌ Network error.");
+      }
+    };
+
+  </script>
+</body>
+</html>
