@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Select Category</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="card">
+  <h1>Select Support Category</h1>
+  <p style="color:#666;margin-bottom:24px;">What would you like to discuss with the counsellor?</p>
+  <a href="/calendar?category=Academic"><button>📚 Academic</button></a>
+  <a href="/calendar?category=Wellbeing"><button>💙 Wellbeing</button></a>
+  <a href="/calendar?category=Career"><button>🚀 Career</button></a>
+  <br/>
+  <a href="/"><button style="background:#888;margin-top:8px;">← Back</button></a>
+</div>
+</body>
+</html>

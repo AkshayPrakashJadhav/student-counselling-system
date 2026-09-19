@@ -1,5 +1,5 @@
 const sqlite3 = require("sqlite3").verbose();
-
+ 
 const db = new sqlite3.Database("./database.db", (err) => {
   if (err) {
     console.error("❌ DB ERROR:", err);
@@ -7,23 +7,22 @@ const db = new sqlite3.Database("./database.db", (err) => {
     console.log("✅ SQLite Connected");
   }
 });
-
-// Create table
+ 
+// Create bookings table with Zoom fields
 db.run(`
   CREATE TABLE IF NOT EXISTS bookings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    email TEXT,
-    category TEXT,
-    date TEXT,
-    time TEXT,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    date TEXT NOT NULL,
+    time TEXT NOT NULL,
+    category TEXT DEFAULT 'General',
     meetLink TEXT,
-    transcript TEXT
+    meetingId TEXT,
+    meetingPassword TEXT,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
-
-// Try to add columns if table already exists
-db.run("ALTER TABLE bookings ADD COLUMN category TEXT", (err) => { /* ignore if already exists */ });
-db.run("ALTER TABLE bookings ADD COLUMN transcript TEXT", (err) => { /* ignore if already exists */ });
-
+ 
 module.exports = db;
+ 

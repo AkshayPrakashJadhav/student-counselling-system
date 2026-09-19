@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Student Support Chatbot</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+  .chatbot-btn {
+    position: fixed; bottom: 24px; right: 24px;
+    background: #4CAF50; color: white; border: none;
+    border-radius: 50%; width: 64px; height: 64px;
+    font-size: 28px; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: transform 0.2s; z-index: 999;
+  }
+  .chatbot-btn:hover { transform: scale(1.1); }
+  .chatbox {
+    position: fixed; bottom: 100px; right: 24px;
+    width: 350px; height: 540px;
+    background: white; border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    display: none; flex-direction: column;
+    font-family: 'Segoe UI', sans-serif;
+    overflow: hidden; z-index: 998;
+  }
+  .chat-header {
+    background: linear-gradient(135deg, #4CAF50, #2196F3);
+    color: white; padding: 14px 16px;
+    font-size: 16px; font-weight: bold;
+  }
+  .chat-body {
+    flex: 1; padding: 12px; overflow-y: auto;
+    background: #f9f9f9; display: flex;
+    flex-direction: column; gap: 8px;
+  }
+  .bot {
+    background: white; padding: 10px 14px;
+    border-radius: 12px 12px 12px 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    max-width: 88%; font-size: 14px; line-height: 1.5;
+  }
+  .user {
+    background: #4CAF50; color: white;
+    padding: 10px 14px; border-radius: 12px 12px 0 12px;
+    max-width: 88%; font-size: 14px;
+    align-self: flex-end; text-align: right;
+  }
+  .options { display: flex; flex-direction: column; gap: 6px; }
+  .options button {
+    width: 100%; padding: 9px 12px; border: none;
+    background: #2196F3; color: white; border-radius: 8px;
+    cursor: pointer; font-size: 13px; text-align: left;
+    transition: background 0.2s;
+  }
+  .options button:hover { background: #1976D2; }
+  .input-group { display: flex; flex-direction: column; gap: 6px; }
+  .input-group input {
+    width: 100%; padding: 8px 10px; border: 1px solid #ddd;
+    border-radius: 8px; font-size: 13px; box-sizing: border-box;
+  }
+  .slot-picker { display: flex; flex-direction: column; gap: 8px; }
+  .slot-picker label { font-size: 13px; font-weight: bold; color: #333; }
+  .slot-picker input[type="date"] {
+    width: 100%; padding: 8px; border: 1px solid #ddd;
+    border-radius: 8px; font-size: 13px;
+  }
+  .time-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .time-btn {
+    padding: 8px 4px; border: 1px solid #4CAF50;
+    background: white; color: #4CAF50; border-radius: 6px;
+    cursor: pointer; font-size: 12px; text-align: center;
+    transition: all 0.2s;
+  }
+  .time-btn:hover:not(.booked) { background: #4CAF50; color: white; }
+  .time-btn.selected { background: #4CAF50; color: white; }
+  .time-btn.booked {
+    background: #f5f5f5; color: #bbb; border-color: #ddd;
+    cursor: not-allowed; text-decoration: line-through;
+  }
+  .confirm-btn {
+    width: 100%; padding: 10px; background: #4CAF50;
+    color: white; border: none; border-radius: 8px;
+    font-size: 14px; cursor: pointer; margin-top: 4px;
+  }
+  .confirm-btn:disabled { background: #ccc; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<div class="chatbox" id="chatbox">
+  <div class="chat-header">🎓 Student Support Bot</div>
+  <div class="chat-body" id="chat"></div>
+</div>
+<button class="chatbot-btn" onclick="toggleChat()">💬</button>
+
+<script>
+let state = {
+  feeling:'', category:'', studentId:'',
+  studentName:'', studentEmail:'',
+  selectedDate:'', selectedTime:'', bookedSlots:[]
+};
+
+const TIME_SLOTS = [
+  "09:00","09:30","10:00","10:30","11:00","11:30",
+  "14:00","14:30","15:00","15:30","16:00","16:30","17:00"
+];
+
+function toggleChat() {
+  const box = document.getElementById("chatbox");
+  const open = box.style.display === "flex";
+  box.style.display = open ? "none" : "flex";
+  if (!open && !document.getElementById("chat").children.length) startChat();
+}
+
+function addBot(html) {
+  const chat = document.getElementById("chat");
+  const d = document.createElement("div");
+  d.className = "bot"; d.innerHTML = html;
+  chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+  return d;
+}
+
+function addUser(text) {
+  const chat = document.getElementById("chat");
+  const d = document.createElement("div");
+  d.className = "user"; d.textContent = text;
+  chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+}
+
+function addOptions(buttons) {
+  const chat = document.getElementById("chat");
+  const d = document.createElement("div");
+  d.className = "options";
+  buttons.forEach(([label, fn]) => {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    btn.onclick = () => { d.remove(); fn(); };
+    d.appendChild(btn);
+  });
+  chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+}
+
+function startChat() {
+  addBot("Hello 👋 I'm your Student Support Bot.");
+  setTimeout(() => {
+    addBot("How are you feeling today?");
+    addOptions([
+      ["😢 Sad",       () => pickFeeling("Sad")],
+      ["😰 Stressed",  () => pickFeeling("Stressed")],
+      ["😴 Exhausted", () => pickFeeling("Exhausted")],
+      ["😊 Happy",     () => pickFeeling("Happy")],
+    ]);
+  }, 500);
+}
+
+function pickFeeling(f) {
+  state.feeling = f; addUser(f);
+  setTimeout(() => {
+    addBot(`I understand you're feeling <strong>${f}</strong>.`);
+    setTimeout(() => {
+      addBot("Would you like to speak with a counsellor?");
+      addOptions([
+        ["✅ Yes, book a session", askCategory],
+        ["❌ No, thanks", () => addBot("Alright! Take care 💙")],
+      ]);
+    }, 400);
+  }, 300);
+}
+
+function askCategory() {
+  addBot("What kind of support do you need?");
+  addOptions([
+    ["📚 Academic",  () => pickCategory("Academic")],
+    ["💙 Wellbeing", () => pickCategory("Wellbeing")],
+    ["🚀 Career",    () => pickCategory("Career")],
+  ]);
+}
+
+function pickCategory(cat) {
+  state.category = cat; addUser(cat);
+  setTimeout(askStudentDetails, 300);
+}
+
+function askStudentDetails() {
+  addBot("Please enter your details:");
+  const chat = document.getElementById("chat");
+  const d = document.createElement("div");
+  d.className = "bot input-group";
+  d.innerHTML = `
+    <input id="inp-id"    placeholder="Student ID (e.g. 1RN23AD062)" />
+    <input id="inp-name"  placeholder="Full Name" />
+    <input id="inp-email" type="email" placeholder="College Email" />
+    <button class="confirm-btn" onclick="submitDetails(this)">Continue →</button>
+  `;
+  chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+}
+
+function submitDetails(btn) {
+  const id    = document.getElementById("inp-id").value.trim();
+  const name  = document.getElementById("inp-name").value.trim();
+  const email = document.getElementById("inp-email").value.trim();
+  if (!id || !name || !email) { alert("Please fill all fields."); return; }
+  if (!/^1RN\d{2}[A-Z]{2}\d{3}$/.test(id)) { alert("Invalid Student ID. e.g. 1RN23AD062"); return; }
+  if (!/^[\w\.-]+@[\w\.-]+\.\w+$/.test(email)) { alert("Invalid email."); return; }
+  state.studentId = id; state.studentName = name; state.studentEmail = email;
+  btn.closest(".bot").remove();
+  addUser(`${name} • ${id}`);
+  setTimeout(showSlotPicker, 300);
+}
+
+async function showSlotPicker() {
+  try {
+    const res = await fetch("/api/available-slots");
+    state.bookedSlots = await res.json();
+  } catch(e) { state.bookedSlots = []; }
+
+  addBot("📅 Choose your preferred date and time:");
+  const chat = document.getElementById("chat");
+  const d = document.createElement("div");
+  d.className = "bot slot-picker";
+  const today = new Date().toISOString().split("T")[0];
+  d.innerHTML = `
+    <label>Select Date:</label>
+    <input type="date" id="slot-date" min="${today}" onchange="renderTimeSlots()" />
+    <label>Select Time (30 min slots):</label>
+    <div class="time-grid" id="time-grid">
+      <span style="color:#999;font-size:12px;">Pick a date first</span>
+    </div>
+    <button class="confirm-btn" id="slot-confirm" disabled onclick="confirmSlot(this)">
+      ✅ Confirm Slot
+    </button>
+  `;
+  chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+}
+
+function renderTimeSlots() {
+  const date = document.getElementById("slot-date").value;
+  state.selectedDate = date; state.selectedTime = '';
+  document.getElementById("slot-confirm").disabled = true;
+  const grid = document.getElementById("time-grid");
+  grid.innerHTML = '';
+  const booked = state.bookedSlots.filter(s => s.date === date).map(s => s.time);
+  TIME_SLOTS.forEach(t => {
+    const btn = document.createElement("button");
+    const isBooked = booked.includes(t);
+    btn.className = "time-btn" + (isBooked ? " booked" : "");
+    btn.textContent = t;
+    if (!isBooked) btn.onclick = () => selectTime(t, btn);
+    grid.appendChild(btn);
+  });
+}
+
+function selectTime(time, btn) {
+  document.querySelectorAll(".time-btn").forEach(b => b.classList.remove("selected"));
+  btn.classList.add("selected");
+  state.selectedTime = time;
+  document.getElementById("slot-confirm").disabled = false;
+}
+
+function confirmSlot(btn) {
+  if (!state.selectedDate || !state.selectedTime) return;
+  btn.closest(".bot").remove();
+  addUser(`📅 ${state.selectedDate} at ${state.selectedTime}`);
+  setTimeout(bookSession, 300);
+}
+
+async function bookSession() {
+  addBot("⏳ Creating your Zoom session...");
+  try {
+    const res = await fetch("/api/book-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        student_id:    state.studentId,
+        student_name:  state.studentName,
+        student_email: state.studentEmail,
+        category:      state.category,
+        date:          state.selectedDate,
+        time:          state.selectedTime,
+      })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      localStorage.setItem("booking", JSON.stringify({
+        name: state.studentName, date: data.date,
+        time: data.time, category: data.category,
+        meetLink: data.meet_link, meetingId: data.meeting_id,
+        password: data.password,
+      }));
+      addBot(`✅ <strong>Session Booked!</strong><br>
+        📅 ${data.date} at ${data.time}<br>
+        🔗 <a href="${data.meet_link}" target="_blank">Join Zoom Meeting</a><br>
+        🔑 Password: <strong>${data.password}</strong><br>
+        📧 Confirmation sent to your email.`);
+      setTimeout(() => {
+        addOptions([["📄 View Confirmation", () => window.location.href = "/confirmation"]]);
+      }, 500);
+    } else {
+      addBot(`❌ ${data.message || "Booking failed. Please try again."}`);
+    }
+  } catch(e) {
+    addBot("❌ Server error. Please try again."); console.error(e);
+  }
+}
+</script>
+</body>
+</html>
